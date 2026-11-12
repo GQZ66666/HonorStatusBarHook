@@ -102,30 +102,30 @@ public final class BatteryHook {
 
         float inset = 4 * s;
         float fillW = (body.width() - 2 * inset) * level / 100f;
-        if (fillW > 0.5f) {
-            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-            p.setColor(fill);
-            float fr = Math.min((body.height() - 2 * inset) / 2f, Math.max(1f, fillW / 2f));
-            canvas.drawRoundRect(new RectF(body.left + inset, body.top + inset,
-                    body.left + inset + fillW, body.bottom - inset), fr, fr, p);
-        }
+
+        int left = Math.round(ox);
+        int top = Math.round(oy);
+        int right = Math.round(ox + VIEW_W * s);
+        int bottom = Math.round(oy + VIEW_H * s);
 
         Drawable outline = res.get(R.drawable.hm_battery_outline);
         if (outline != null) {
             outline.setTint(tint);
-            outline.setBounds(Math.round(ox), Math.round(oy),
-                    Math.round(ox + VIEW_W * s), Math.round(oy + VIEW_H * s));
+            outline.setBounds(left, top, right, bottom);
             outline.draw(canvas);
         }
 
-        if (charging) {
-            Drawable bolt = res.get(R.drawable.hm_battery_charge);
-            if (bolt != null) {
-                bolt.setTint(0xFFFFFFFF);
-                bolt.setBounds(Math.round(ox), Math.round(oy),
-                        Math.round(ox + VIEW_W * s), Math.round(oy + VIEW_H * s));
-                bolt.draw(canvas);
-            }
+        // 用鸿蒙自己的“实心胶囊”矢量做填充形状，按电量裁剪；
+        // 画在外框之后、且裁到内腔，避免被外框或实心路径盖掉。
+        Drawable fillShape = res.get(R.drawable.hm_battery_charge);
+        if (fillShape != null && fillW > 0.5f) {
+            int save = canvas.save();
+            canvas.clipRect(body.left + inset, body.top + inset,
+                    body.left + inset + fillW, body.bottom - inset);
+            fillShape.setTint(fill);
+            fillShape.setBounds(left, top, right, bottom);
+            fillShape.draw(canvas);
+            canvas.restoreToCount(save);
         }
 
         if (show) {

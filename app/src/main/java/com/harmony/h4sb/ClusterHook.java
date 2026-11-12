@@ -43,6 +43,8 @@ public final class ClusterHook {
             new java.util.concurrent.atomic.AtomicBoolean(false);
     private static final Map<View, Integer> LEVELS =
             Collections.synchronizedMap(new WeakHashMap<>());
+    private static final java.util.Set<String> ENTRIES =
+            Collections.synchronizedSet(new java.util.HashSet<>());
 
     public ClusterHook(Context ctx) {
         this.ctx = ctx;
@@ -169,6 +171,16 @@ public final class ClusterHook {
                 }
             }
         });
+        XposedBridge.hookAllMethods(unit, "updateView", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                try {
+                    onUpdateView(param);
+                } catch (Throwable t) {
+                    XposedBridge.log(t);
+                }
+            }
+        });
         try {
             Method dd = findInherited(unit, "dispatchDraw", Canvas.class);
             if (dd != null) {
@@ -217,6 +229,31 @@ public final class ClusterHook {
         d.draw((Canvas) param.args[0]);
     }
 
+    private void onUpdateView(XC_MethodHook.MethodHookParam param) {
+        if (param.args.length < 2 || !(param.args[0] instanceof ImageView)
+                || !(param.args[1] instanceof Integer)) {
+            return;
+        }
+        ImageView view = (ImageView) param.args[0];
+        int resId = (Integer) param.args[1];
+        String entry = entry(view, resId);
+        int level = level(entry, "signal");
+        if (level < 0) {
+            return;
+        }
+        note(entry, level);
+        if (param.thisObject instanceof View) {
+            LEVELS.put((View) param.thisObject, level);
+        }
+        apply(view, SIGNAL[level], null);
+    }
+
+    private void note(String entry, int level) {
+        if (entry != null && ENTRIES.add(entry) && ENTRIES.size() <= 8) {
+            Diag.report(ctx, "unit", entry + " -> " + level);
+        }
+    }
+
     /** refreshView 之后，按 mMobileStrengthId 的资源名覆盖 mMobileSignal 的图。 */
     private void onRefresh(XC_MethodHook.MethodHookParam param) {
         Object obj = param.thisObject;
@@ -230,9 +267,12 @@ public final class ClusterHook {
         }
         ImageView view = (ImageView) viewObj;
         String entry = entry(view, resId);
+        if (entry != null && entry.toLowerCase().contains("null")) {
+            return;
+        }
         int level = level(entry, "signal");
-        if (sFirstUnit.compareAndSet(false, true)) {
-            Diag.report(ctx, "unit", "entry=" + entry + " level=" + level);
+        if (level >= 0) {
+            note(entry, level);
         }
         if (level < 0) {
             return;
@@ -315,7 +355,11 @@ public final class ClusterHook {
             char c = e.charAt(i);
             if (c >= '0' && c <= '9') {
                 int v = c - '0';
-                return v <= 4 ? v : 4;
+                if (e.contains("five")) {
+                    // five_0..5 = 亮起 0..5 格，折算到鸿蒙的 0..4 格
+                    return Math.min(4, Math.round(v * 4f / 5f));
+                }
+                return Math.min(v, 4);
             }
         }
         return -1;

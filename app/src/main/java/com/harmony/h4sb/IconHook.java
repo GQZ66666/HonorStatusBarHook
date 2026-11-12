@@ -319,6 +319,7 @@ public final class IconHook {
             level = 4;
         }
         if (wifi) {
+            // 荣耀的 wifi2_*（双 Wi-Fi/加速）、wifi6/7_* 和普通 wifi_signal_* 都按 _N 映射
             return WIFI[level];
         }
         if (mobile) {
