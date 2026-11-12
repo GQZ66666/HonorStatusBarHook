@@ -62,17 +62,19 @@ public final class ClusterHook {
         Class<?> unit = XposedHelpers.findClassIfExists(
                 "com.android.systemui.statusbar.SignalUnitNormalView", cl);
         if (unit != null) {
-            XposedBridge.hookAllMethods(unit, "updateView", new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    try {
-                        onSignalUnit(param);
-                    } catch (Throwable t) {
-                        XposedBridge.log(t);
-                    }
-                }
-            });
+            hookUnit(unit);
             XposedBridge.log(ModuleEntry.TAG + ": SignalUnitNormalView hooked");
+        }
+        Class<?> uct = XposedHelpers.findClassIfExists(
+                "com.android.systemui.statusbar.SignalUnitUCTView", cl);
+        if (uct != null) {
+            hookUnit(uct);
+            XposedBridge.log(ModuleEntry.TAG + ": SignalUnitUCTView hooked");
+        }
+        Class<?> telecom = XposedHelpers.findClassIfExists(
+                "com.android.systemui.statusbar.SignalUnitTelecomView", cl);
+        if (telecom != null) {
+            hookUnit(telecom);
         }
 
         Class<?> cluster = XposedHelpers.findClassIfExists(
@@ -92,16 +94,32 @@ public final class ClusterHook {
         }
     }
 
-    private void onSignalUnit(XC_MethodHook.MethodHookParam param) {
-        if (param.args.length < 2 || !(param.args[0] instanceof ImageView)) {
+    private void hookUnit(Class<?> unit) {
+        XposedBridge.hookAllMethods(unit, "refreshView", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                try {
+                    onRefresh(param);
+                } catch (Throwable t) {
+                    XposedBridge.log(t);
+                }
+            }
+        });
+    }
+
+    /** refreshView 之后，按 mMobileStrengthId 的资源名覆盖 mMobileSignal 的图。 */
+    private void onRefresh(XC_MethodHook.MethodHookParam param) {
+        Object obj = param.thisObject;
+        Object viewObj = field(obj, "mMobileSignal");
+        if (!(viewObj instanceof ImageView)) {
             return;
         }
-        ImageView view = (ImageView) param.args[0];
-        Object arg = param.args[1];
-        if (!(arg instanceof Integer)) {
+        int resId = getInt(obj, "mMobileStrengthId");
+        if (resId == 0) {
             return;
         }
-        String entry = entry(view, (Integer) arg);
+        ImageView view = (ImageView) viewObj;
+        String entry = entry(view, resId);
         int level = level(entry, "signal");
         if (sFirstUnit.compareAndSet(false, true)) {
             Diag.report(ctx, "unit", "entry=" + entry + " level=" + level);
@@ -119,6 +137,10 @@ public final class ClusterHook {
         Object state = param.args[1];
         Icon icon = iconOf(state);
         if (icon == null) {
+            if (sFirstWifi.compareAndSet(false, true)) {
+                Diag.report(ctx, "wifi", "state no icon: " + (state == null ? "null"
+                        : state.getClass().getSimpleName()));
+            }
             return;
         }
         String entry = entryOf(icon);
@@ -239,7 +261,20 @@ public final class ClusterHook {
 
     private static Icon iconOf(Object state) {
         Object v = field(state, "icon");
-        return v instanceof Icon ? (Icon) v : null;
+        if (v instanceof Icon) {
+            return (Icon) v;
+        }
+        try {
+            Object r = XposedHelpers.callMethod(state, "getIcon");
+            return r instanceof Icon ? (Icon) r : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static int getInt(Object obj, String name) {
+        Object v = field(obj, name);
+        return v instanceof Integer ? (Integer) v : 0;
     }
 
     private static ImageView findImage(ViewGroup group) {
