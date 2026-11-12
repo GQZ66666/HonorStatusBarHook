@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">鸿蒙4状态栏</string>
+    <string name="title">鸿蒙 4 状态栏</string>
+    <string name="subtitle">HarmonyOS 4 矢量图标 · MagicOS 11 移植</string>
+    <string name="body">启用后会把状态栏的信号、Wi-Fi、电池换成鸿蒙 4 的矢量图标（从鸿蒙 4 SystemUI 提取，等比缩放，高清不糊）。\n\n在 LSPosed 中启用本模块，作用域勾选「系统界面」，然后点下面的按钮重启系统界面。\n\n当前版本：信号 / Wi-Fi / 电池；其余小图标（蓝牙、闹钟、定位等）后续按同一流程补齐。</string>
+    <string name="btn_restart">重启系统界面</string>
+    <string name="restart_running">正在重启系统界面…</string>
+</resources>
