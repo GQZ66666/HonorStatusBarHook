@@ -115,9 +115,10 @@ public final class BatteryHook {
             outline.draw(canvas);
         }
 
-        // 用鸿蒙自己的“实心胶囊”矢量做填充形状，按电量裁剪；
-        // 画在外框之后、且裁到内腔，避免被外框或实心路径盖掉。
-        Drawable fillShape = res.get(R.drawable.hm_battery_charge);
+        // 普通状态用 ic_statusbar_battery_100（内缩 14..91 / 14..50），
+        // 充电才用 _100_charge（满内腔 10..95 / 10..54）
+        Drawable fillShape = res.get(charging
+                ? R.drawable.hm_battery_charge : R.drawable.hm_battery_fill);
         if (fillShape != null && fillW > 0.5f) {
             int save = canvas.save();
             canvas.clipRect(body.left + inset, body.top + inset,
