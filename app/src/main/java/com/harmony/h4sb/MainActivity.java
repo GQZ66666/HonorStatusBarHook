@@ -25,26 +25,16 @@ public final class MainActivity extends Activity {
     }
 
     private void refreshDiag() {
-        StringBuilder sb = new StringBuilder();
+        String log = null;
         try {
             Bundle b = getContentResolver().call(Diag.URI, "diag", null, null);
             if (b != null) {
-                append(sb, b, "hooks", "注入");
-                append(sb, b, "iconset", "StatusBarIconView");
-                append(sb, b, "unit", "信号格");
-                append(sb, b, "wifi", "Wi-Fi");
-                append(sb, b, "battery", "电池");
+                log = b.getString("log");
             }
         } catch (Throwable ignored) {
         }
-        tvDiag.setText(sb.length() == 0 ? getString(R.string.diag_empty) : sb.toString().trim());
-    }
-
-    private static void append(StringBuilder sb, Bundle b, String key, String label) {
-        String v = b.getString(key);
-        if (v != null) {
-            sb.append(label).append(": ").append(v).append('\n');
-        }
+        tvDiag.setText(log == null || log.trim().isEmpty()
+                ? getString(R.string.diag_empty) : log);
     }
 
     private void restart() {

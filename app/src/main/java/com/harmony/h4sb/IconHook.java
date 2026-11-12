@@ -70,7 +70,63 @@ public final class IconHook {
                 }
             }
         });
+
+        XposedBridge.hookAllMethods(ImageView.class, "setImageIcon", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                try {
+                    onImageIcon(param);
+                } catch (Throwable t) {
+                    XposedBridge.log(t);
+                }
+            }
+        });
         XposedBridge.log(ModuleEntry.TAG + ": StatusBarIconView + ImageView hooked");
+    }
+
+    private void onImageIcon(XC_MethodHook.MethodHookParam param) {
+        if (!(param.thisObject instanceof ImageView) || param.args.length < 1) {
+            return;
+        }
+        Object arg = param.args[0];
+        if (!(arg instanceof Icon)) {
+            return;
+        }
+        Icon icon = (Icon) arg;
+        String entry = null;
+        try {
+            int id = icon.getResId();
+            String pkg = icon.getResPackage();
+            if (id != 0 && pkg != null) {
+                entry = ctx.getPackageManager().getResourcesForApplication(pkg)
+                        .getResourceEntryName(id);
+            }
+        } catch (Throwable ignored) {
+        }
+        if (entry == null) {
+            return;
+        }
+        String e = entry.toLowerCase();
+        if (!e.contains("wifi") && !e.contains("signal")) {
+            return;
+        }
+        Diag.report(ctx, "icon", "entry=" + entry);
+        ImageView iv = (ImageView) param.thisObject;
+        int rid = map(null, entry);
+        if (rid == 0 || res == null) {
+            return;
+        }
+        Drawable d = res.get(rid);
+        if (d == null) {
+            return;
+        }
+        iv.setImageDrawable(d);
+        ColorStateList tint = iv.getImageTintList();
+        if (tint != null) {
+            d.setTintList(tint);
+        } else {
+            d.setTint(0xFFFFFFFF);
+        }
     }
 
     private void onImageResource(XC_MethodHook.MethodHookParam param) {

@@ -42,6 +42,23 @@ public final class ClusterHook {
     }
 
     public void install(ClassLoader cl) {
+        Class<?> hwCluster = XposedHelpers.findClassIfExists(
+                "com.android.systemui.statusbar.HwSignalClusterView", cl);
+        if (hwCluster != null) {
+            XposedBridge.hookAllMethods(hwCluster, "onAttachedToWindow", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    try {
+                        StringBuilder sb = new StringBuilder();
+                        walk((View) param.thisObject, sb, 0);
+                        Diag.report(ctx, "tree", sb.toString());
+                    } catch (Throwable t) {
+                        XposedBridge.log(t);
+                    }
+                }
+            });
+        }
+
         Class<?> unit = XposedHelpers.findClassIfExists(
                 "com.android.systemui.statusbar.SignalUnitNormalView", cl);
         if (unit != null) {
@@ -176,6 +193,33 @@ public final class ClusterHook {
             return view.getResources().getResourceEntryName(resId);
         } catch (Throwable t) {
             return null;
+        }
+    }
+
+    private static void walk(View v, StringBuilder sb, int depth) {
+        if (sb.length() > 900 || depth > 8) {
+            return;
+        }
+        String id = "";
+        try {
+            if (v.getId() != View.NO_ID) {
+                id = v.getResources().getResourceEntryName(v.getId());
+            }
+        } catch (Throwable ignored) {
+        }
+        sb.append(v.getClass().getSimpleName());
+        if (!id.isEmpty()) {
+            sb.append('#').append(id);
+        }
+        if (v.getVisibility() != View.VISIBLE) {
+            sb.append('(').append(v.getVisibility()).append(')');
+        }
+        sb.append(' ');
+        if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                walk(g.getChildAt(i), sb, depth + 1);
+            }
         }
     }
 

@@ -6,12 +6,14 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public final class DiagProvider extends ContentProvider {
 
-    private static final Map<String, String> DATA = new LinkedHashMap<>();
+    private static final List<String> LOG = Collections.synchronizedList(new ArrayList<>());
+    private static final int MAX = 160;
 
     @Override
     public boolean onCreate() {
@@ -21,23 +23,28 @@ public final class DiagProvider extends ContentProvider {
     @Override
     public Bundle call(String method, String arg, Bundle extras) {
         if ("report".equals(method) && extras != null) {
-            synchronized (DATA) {
+            synchronized (LOG) {
                 for (String key : extras.keySet()) {
                     Object v = extras.get(key);
                     if (v != null) {
-                        DATA.put(key, String.valueOf(v));
+                        LOG.add(key + "=" + v);
                     }
+                }
+                while (LOG.size() > MAX) {
+                    LOG.remove(0);
                 }
             }
             return null;
         }
         if ("diag".equals(method)) {
-            Bundle b = new Bundle();
-            synchronized (DATA) {
-                for (Map.Entry<String, String> e : DATA.entrySet()) {
-                    b.putString(e.getKey(), e.getValue());
+            StringBuilder sb = new StringBuilder();
+            synchronized (LOG) {
+                for (String line : LOG) {
+                    sb.append(line).append('\n');
                 }
             }
+            Bundle b = new Bundle();
+            b.putString("log", sb.toString());
             return b;
         }
         return null;
