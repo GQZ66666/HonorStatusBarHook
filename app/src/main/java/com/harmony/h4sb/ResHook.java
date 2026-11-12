@@ -13,7 +13,7 @@ import de.robv.android.xposed.XposedHelpers;
 /**
  * 参考模块「U7 图标替换」的实际做法：不碰任何 View/binder，
  * 直接 hook Resources.getDrawable / getDrawableForDensity，
- * 按资源名把荣耀的 stat_sys_wifi*/stat_sys_signal* 换成鸿蒙矢量。
+ * 按资源名把荣耀的 stat_sys_wifi_* 和 stat_sys_signal_* 换成鸿蒙矢量。
  *
  * 这样无论图标走 StatusBarIconView、SignalIconBinder、IconViewBinder
  * 还是老的 SignalClusterView，最终拿到的都是替换后的 Drawable。
