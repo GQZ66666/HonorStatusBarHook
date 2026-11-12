@@ -34,6 +34,8 @@ public final class IconHook {
 
     private final Context ctx;
     private final ModuleRes res;
+    private static final java.util.concurrent.atomic.AtomicBoolean sFirst =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public IconHook(Context ctx) {
         this.ctx = ctx;
@@ -132,6 +134,9 @@ public final class IconHook {
         } catch (Throwable ignored) {
         }
         String slot = field(info, "slot") instanceof String ? (String) field(info, "slot") : null;
+        if (sFirst.compareAndSet(false, true)) {
+            Diag.report(ctx, "iconset", "slot=" + slot + " entry=" + entry);
+        }
         int rid = map(slot, entry);
         if (rid == 0 || res == null) {
             return;

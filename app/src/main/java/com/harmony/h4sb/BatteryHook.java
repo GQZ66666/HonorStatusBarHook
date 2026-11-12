@@ -27,6 +27,8 @@ public final class BatteryHook {
 
     private final Context ctx;
     private final ModuleRes res;
+    private static final java.util.concurrent.atomic.AtomicBoolean sFirst =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public BatteryHook(Context ctx) {
         this.ctx = ctx;
@@ -79,6 +81,9 @@ public final class BatteryHook {
         int tint = currentTint(obj);
         if (tint == 0) {
             tint = 0xFFFFFFFF;
+        }
+        if (sFirst.compareAndSet(false, true)) {
+            Diag.report(ctx, "battery", "level=" + level + " tint=#" + Integer.toHexString(tint));
         }
         int w = view.getWidth();
         int h = view.getHeight();

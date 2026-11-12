@@ -32,6 +32,7 @@ public final class ModuleEntry implements IXposedHookLoadPackage {
                             new IconHook(ctx).install(lp.classLoader);
                             new ClusterHook(ctx).install(lp.classLoader);
                             new BatteryHook(ctx).install(lp.classLoader);
+                            Diag.report(ctx, "hooks", "icon+cluster+battery installed");
                         } catch (Throwable t) {
                             XposedBridge.log(t);
                         }

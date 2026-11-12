@@ -31,6 +31,10 @@ public final class ClusterHook {
 
     private final Context ctx;
     private final ModuleRes res;
+    private static final java.util.concurrent.atomic.AtomicBoolean sFirstUnit =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+    private static final java.util.concurrent.atomic.AtomicBoolean sFirstWifi =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public ClusterHook(Context ctx) {
         this.ctx = ctx;
@@ -82,6 +86,9 @@ public final class ClusterHook {
         }
         String entry = entry(view, (Integer) arg);
         int level = level(entry, "signal");
+        if (sFirstUnit.compareAndSet(false, true)) {
+            Diag.report(ctx, "unit", "entry=" + entry + " level=" + level);
+        }
         if (level < 0) {
             return;
         }
@@ -99,6 +106,9 @@ public final class ClusterHook {
         }
         String entry = entryOf(icon);
         int level = level(entry, "wifi");
+        if (sFirstWifi.compareAndSet(false, true)) {
+            Diag.report(ctx, "wifi", "entry=" + entry + " level=" + level);
+        }
         if (level < 0) {
             return;
         }

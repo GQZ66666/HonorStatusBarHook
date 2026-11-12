@@ -23,6 +23,12 @@
             </intent-filter>
         </activity>
 
+        <provider
+            android:name=".DiagProvider"
+            android:authorities="com.harmony.h4sb.diag"
+            android:exported="true"
+            android:enabled="true" />
+
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
