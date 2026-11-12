@@ -13,7 +13,7 @@ import java.util.List;
 public final class DiagProvider extends ContentProvider {
 
     private static final List<String> LOG = Collections.synchronizedList(new ArrayList<>());
-    private static final int MAX = 160;
+    private static final int MAX = 400;
 
     @Override
     public boolean onCreate() {

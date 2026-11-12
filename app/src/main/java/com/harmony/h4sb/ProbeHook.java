@@ -48,8 +48,13 @@ public final class ProbeHook {
             "(?i)^(set|update|apply|refresh|bind|onWifi|onMobile|onSignal).*");
     private static final Pattern SKIP = Pattern.compile(
             "(?i).*(draw|layout|measure|attached|detached|save|restore|dispatch).*");
+    private static final Pattern NOISE = Pattern.compile(
+            "(?i).*(updateDftLeftViewAlphaById|updateIconsAlpha|setAlpha|setCapsuleArea"
+                    + "|updateDisplayParameters|setExtData|applyIconTint).*");
 
     private static final Set<String> SEEN = Collections.synchronizedSet(new HashSet<>());
+    private static final java.util.Map<String, Integer> HITS =
+            Collections.synchronizedMap(new java.util.HashMap<>());
     private static final AtomicInteger COUNT = new AtomicInteger();
 
     private final Context ctx;
@@ -95,6 +100,15 @@ public final class ProbeHook {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
                 try {
+                    if (NOISE.matcher(key).matches()) {
+                        return;
+                    }
+                    Integer n = HITS.get(key);
+                    int c = n == null ? 0 : n;
+                    if (c >= 5) {
+                        return;
+                    }
+                    HITS.put(key, c + 1);
                     if (COUNT.incrementAndGet() > 400) {
                         return;
                     }

@@ -2,9 +2,15 @@ package com.harmony.h4sb;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
 import android.widget.ImageView;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -36,6 +42,10 @@ public final class IconHook {
     private final ModuleRes res;
     private static final java.util.concurrent.atomic.AtomicBoolean sFirst =
             new java.util.concurrent.atomic.AtomicBoolean(false);
+    private static final Map<Drawable, Integer> IDS =
+            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final AtomicInteger MAP_HITS = new AtomicInteger();
+    private static final ThreadLocal<Boolean> IN_REPLACE = new ThreadLocal<>();
 
     public IconHook(Context ctx) {
         this.ctx = ctx;
@@ -81,7 +91,91 @@ public final class IconHook {
                 }
             }
         });
+
+        // 记录 Resources 加载出的 Drawable -> resId，供 setImageDrawable 反查
+        XposedBridge.hookAllMethods(Resources.class, "getDrawable", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                record(param);
+            }
+        });
+        XposedBridge.hookAllMethods(Resources.class, "getDrawableForDensity", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                record(param);
+            }
+        });
+        XposedBridge.hookAllMethods(ImageView.class, "setImageDrawable", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                try {
+                    onImageDrawable(param);
+                } catch (Throwable t) {
+                    XposedBridge.log(t);
+                }
+            }
+        });
         XposedBridge.log(ModuleEntry.TAG + ": StatusBarIconView + ImageView hooked");
+    }
+
+    private static void record(XC_MethodHook.MethodHookParam param) {
+        try {
+            if (!(param.getResult() instanceof Drawable) || param.args.length < 1
+                    || !(param.args[0] instanceof Integer)) {
+                return;
+            }
+            IDS.put((Drawable) param.getResult(), (Integer) param.args[0]);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void onImageDrawable(XC_MethodHook.MethodHookParam param) {
+        if (!(param.thisObject instanceof ImageView) || param.args.length < 1
+                || !(param.args[0] instanceof Drawable)) {
+            return;
+        }
+        Drawable d = (Drawable) param.args[0];
+        Integer id = IDS.get(d);
+        if (id == null) {
+            return;
+        }
+        ImageView iv = (ImageView) param.thisObject;
+        String entry;
+        try {
+            entry = iv.getResources().getResourceEntryName(id);
+        } catch (Throwable t) {
+            return;
+        }
+        String e = entry.toLowerCase();
+        if (e.startsWith("hm_") || (!e.contains("wifi") && !e.contains("signal"))) {
+            return;
+        }
+        if (Boolean.TRUE.equals(IN_REPLACE.get())) {
+            return;
+        }
+        if (MAP_HITS.incrementAndGet() <= 8) {
+            Diag.report(ctx, "img.map", iv.getClass().getSimpleName() + " -> " + entry);
+        }
+        int rid = map(null, entry);
+        if (rid == 0 || res == null) {
+            return;
+        }
+        Drawable nd = res.get(rid);
+        if (nd == null) {
+            return;
+        }
+        IN_REPLACE.set(Boolean.TRUE);
+        try {
+            iv.setImageDrawable(nd);
+        } finally {
+            IN_REPLACE.set(Boolean.FALSE);
+        }
+        ColorStateList tint = iv.getImageTintList();
+        if (tint != null) {
+            nd.setTintList(tint);
+        } else {
+            nd.setTint(0xFFFFFFFF);
+        }
     }
 
     private void onImageIcon(XC_MethodHook.MethodHookParam param) {
