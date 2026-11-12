@@ -56,7 +56,58 @@ public final class IconHook {
                 }
             }
         });
-        XposedBridge.log(ModuleEntry.TAG + ": StatusBarIconView hooked");
+
+        // Honor 的 Wi-Fi / 信号是 HwSignalClusterView 里的 ImageView，走 setImageResource
+        XposedBridge.hookAllMethods(ImageView.class, "setImageResource", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                try {
+                    onImageResource(param);
+                } catch (Throwable t) {
+                    XposedBridge.log(t);
+                }
+            }
+        });
+        XposedBridge.log(ModuleEntry.TAG + ": StatusBarIconView + ImageView hooked");
+    }
+
+    private void onImageResource(XC_MethodHook.MethodHookParam param) {
+        if (!(param.thisObject instanceof ImageView) || param.args.length < 1) {
+            return;
+        }
+        Object arg = param.args[0];
+        if (!(arg instanceof Integer)) {
+            return;
+        }
+        int resId = (Integer) arg;
+        ImageView iv = (ImageView) param.thisObject;
+        String entry = null;
+        try {
+            entry = iv.getResources().getResourceEntryName(resId);
+        } catch (Throwable ignored) {
+        }
+        if (entry == null) {
+            return;
+        }
+        String e = entry.toLowerCase();
+        if (!e.contains("wifi") && !e.contains("signal")) {
+            return;
+        }
+        int rid = map(null, entry);
+        if (rid == 0 || res == null) {
+            return;
+        }
+        Drawable d = res.get(rid);
+        if (d == null) {
+            return;
+        }
+        iv.setImageDrawable(d);
+        ColorStateList tint = iv.getImageTintList();
+        if (tint != null) {
+            d.setTintList(tint);
+        } else {
+            d.setTint(0xFFFFFFFF);
+        }
     }
 
     private void onSet(XC_MethodHook.MethodHookParam param) {

@@ -76,7 +76,7 @@ public final class BatteryHook {
         }
         boolean charging = getBool(obj, "mIsCharging");
         boolean show = getBool(obj, "mIsShowPercent");
-        int tint = getInt(obj, "mTintColor");
+        int tint = currentTint(obj);
         if (tint == 0) {
             tint = 0xFFFFFFFF;
         }
@@ -148,6 +148,19 @@ public final class BatteryHook {
         Rect r = new Rect();
         p.getTextBounds(ref, 0, ref.length(), r);
         c.drawText(text, cx, cy - (r.top + r.bottom) / 2f, p);
+    }
+
+    /** 优先取百分比文字当前颜色（会随深浅色状态栏变化），退回 mTintColor。 */
+    private static int currentTint(Object obj) {
+        Object pv = field(obj, "mInsidePercentView");
+        if (pv instanceof android.widget.TextView) {
+            int c = ((android.widget.TextView) pv).getCurrentTextColor();
+            if (c != 0) {
+                return c | 0xFF000000;
+            }
+        }
+        int c = getInt(obj, "mTintColor");
+        return c == 0 ? 0 : (c | 0xFF000000);
     }
 
     private static Method findInherited(Class<?> start, String name, Class<?>... params) {
