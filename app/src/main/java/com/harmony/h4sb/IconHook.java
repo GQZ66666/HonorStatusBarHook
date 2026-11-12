@@ -47,6 +47,10 @@ public final class IconHook {
     private static final AtomicInteger MAP_HITS = new AtomicInteger();
     private static final ThreadLocal<Boolean> IN_REPLACE = new ThreadLocal<>();
 
+    public static Integer idOf(Drawable d) {
+        return d == null ? null : IDS.get(d);
+    }
+
     public IconHook(Context ctx) {
         this.ctx = ctx;
         this.res = ModuleRes.get(ctx);

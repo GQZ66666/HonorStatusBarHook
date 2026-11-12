@@ -2,11 +2,17 @@ package com.harmony.h4sb;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+
+import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -35,6 +41,8 @@ public final class ClusterHook {
             new java.util.concurrent.atomic.AtomicBoolean(false);
     private static final java.util.concurrent.atomic.AtomicBoolean sFirstWifi =
             new java.util.concurrent.atomic.AtomicBoolean(false);
+    private static final Map<View, Integer> LEVELS =
+            Collections.synchronizedMap(new WeakHashMap<>());
 
     public ClusterHook(Context ctx) {
         this.ctx = ctx;
@@ -90,8 +98,64 @@ public final class ClusterHook {
                     }
                 }
             });
+            try {
+                Method dd = findInherited(cluster, "dispatchDraw", Canvas.class);
+                if (dd != null) {
+                    XposedBridge.hookMethod(dd, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            try {
+                                overlayWifi(param);
+                            } catch (Throwable t) {
+                                XposedBridge.log(t);
+                            }
+                        }
+                    });
+                }
+            } catch (Throwable t) {
+                XposedBridge.log(t);
+            }
             XposedBridge.log(ModuleEntry.TAG + ": SignalClusterView hooked");
         }
+    }
+
+    /** Wi-Fi：从 mWifiGroup 子 ImageView 的 Drawable 反查资源名，隐藏原图后自绘。 */
+    private void overlayWifi(XC_MethodHook.MethodHookParam param) {
+        if (!(param.thisObject instanceof View) || param.args.length < 1
+                || !(param.args[0] instanceof Canvas)) {
+            return;
+        }
+        Object groupObj = field(param.thisObject, "mWifiGroup");
+        if (!(groupObj instanceof ViewGroup) || res == null) {
+            return;
+        }
+        ViewGroup group = (ViewGroup) groupObj;
+        ImageView icon = findImage(group);
+        if (icon == null || icon.getDrawable() == null) {
+            return;
+        }
+        Integer id = IconHook.idOf(icon.getDrawable());
+        if (id == null) {
+            return;
+        }
+        String entry;
+        try {
+            entry = icon.getResources().getResourceEntryName(id);
+        } catch (Throwable t) {
+            return;
+        }
+        int level = level(entry, "wifi");
+        if (level < 0) {
+            return;
+        }
+        group.setAlpha(0f);
+        Drawable d = res.get(WIFI[level]);
+        if (d == null) {
+            return;
+        }
+        d.setTint(0xFFFFFFFF);
+        d.setBounds(group.getLeft(), group.getTop(), group.getRight(), group.getBottom());
+        d.draw((Canvas) param.args[0]);
     }
 
     private void hookUnit(Class<?> unit) {
@@ -105,6 +169,52 @@ public final class ClusterHook {
                 }
             }
         });
+        try {
+            Method dd = findInherited(unit, "dispatchDraw", Canvas.class);
+            if (dd != null) {
+                XposedBridge.hookMethod(dd, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) {
+                        try {
+                            overlay(param);
+                        } catch (Throwable t) {
+                            XposedBridge.log(t);
+                        }
+                    }
+                });
+            }
+        } catch (Throwable t) {
+            XposedBridge.log(t);
+        }
+    }
+
+    /** 把系统信号图透明掉，在单位 View 的画布上按原位置画鸿蒙信号。 */
+    private void overlay(XC_MethodHook.MethodHookParam param) {
+        if (!(param.thisObject instanceof View) || param.args.length < 1
+                || !(param.args[0] instanceof Canvas)) {
+            return;
+        }
+        View unit = (View) param.thisObject;
+        Integer level = LEVELS.get(unit);
+        if (level == null || res == null) {
+            return;
+        }
+        Object ms = field(unit, "mMobileSignal");
+        if (!(ms instanceof View)) {
+            return;
+        }
+        View signal = (View) ms;
+        if (signal.getWidth() <= 0) {
+            return;
+        }
+        signal.setAlpha(0f);
+        Drawable d = res.get(SIGNAL[level]);
+        if (d == null) {
+            return;
+        }
+        d.setTint(0xFFFFFFFF);
+        d.setBounds(signal.getLeft(), signal.getTop(), signal.getRight(), signal.getBottom());
+        d.draw((Canvas) param.args[0]);
     }
 
     /** refreshView 之后，按 mMobileStrengthId 的资源名覆盖 mMobileSignal 的图。 */
@@ -127,6 +237,7 @@ public final class ClusterHook {
         if (level < 0) {
             return;
         }
+        LEVELS.put((View) obj, level);
         apply(view, SIGNAL[level], null);
     }
 
@@ -288,6 +399,18 @@ public final class ClusterHook {
                 if (r != null) {
                     return r;
                 }
+            }
+        }
+        return null;
+    }
+
+    private static Method findInherited(Class<?> start, String name, Class<?>... params) {
+        for (Class<?> c = start; c != null; c = c.getSuperclass()) {
+            try {
+                Method m = c.getDeclaredMethod(name, params);
+                m.setAccessible(true);
+                return m;
+            } catch (NoSuchMethodException ignored) {
             }
         }
         return null;
